@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 
 public class RandomRun : MonoBehaviour
 {
@@ -7,36 +7,49 @@ public class RandomRun : MonoBehaviour
     public float maxDistanceFromCenter = 20f;
     public Vector3 centerPoint = Vector3.zero;
 
+    public float turnSpeed = 120f;
+
+    public float runDuration = 3f;
+    public float waitDuration = 2f;
+
+    public Animator anim;
+
     private float timer;
     private float currentInterval;
-
-
-    public string[] animationStates; // put your state names here (e.g. "Run", "Run2", "Run3")
+    private float stateTimer;
+    private bool isWaiting;
 
     void Start()
     {
-        Animator anim = GetComponent<Animator>();
+        if (anim == null)
+            anim = GetComponentInChildren<Animator>();
 
-        if (anim != null && animationStates.Length > 0)
-        {
-            // Pick random animation
-            string randomState = animationStates[Random.Range(0, animationStates.Length)];
-
-            // Start at random point in animation
-            float randomStartTime = Random.value;
-
-            anim.Play(randomState, 0, randomStartTime);
-
-            // Slight speed variation
-            anim.speed = Random.Range(0.8f, 1.2f);
-        }
-    
-    
         SetNewInterval();
+
+        // Randomize starting state + offset
+        isWaiting = Random.value > 0.5f;
+        stateTimer = Random.Range(0f, isWaiting ? waitDuration : runDuration);
+
+        if (anim != null)
+            anim.SetBool("isRunning", !isWaiting);
     }
 
     void Update()
     {
+        stateTimer += Time.deltaTime;
+
+        if (!isWaiting && stateTimer >= runDuration)
+        {
+            StartWait();
+        }
+        else if (isWaiting && stateTimer >= waitDuration)
+        {
+            StartRun();
+        }
+
+        if (isWaiting)
+            return;
+
         Vector3 flatPosition = new Vector3(transform.position.x, 0f, transform.position.z);
         Vector3 flatCenter = new Vector3(centerPoint.x, 0f, centerPoint.z);
 
@@ -48,9 +61,13 @@ public class RandomRun : MonoBehaviour
 
             if (directionToCenter != Vector3.zero)
             {
-                // Because movement uses -Vector3.forward,
-                // we must face the OPPOSITE direction so movement goes toward center
-                transform.rotation = Quaternion.LookRotation(-directionToCenter);
+                Quaternion targetRotation = Quaternion.LookRotation(-directionToCenter);
+
+                transform.rotation = Quaternion.RotateTowards(
+                    transform.rotation,
+                    targetRotation,
+                    turnSpeed * Time.deltaTime
+                );
             }
         }
         else
@@ -67,8 +84,25 @@ public class RandomRun : MonoBehaviour
             }
         }
 
-        // Your model moves correctly with reversed forward
         transform.Translate(-Vector3.forward * speed * Time.deltaTime);
+    }
+
+    void StartRun()
+    {
+        isWaiting = false;
+        stateTimer = 0f;
+
+        if (anim != null)
+            anim.SetBool("isRunning", true);
+    }
+
+    void StartWait()
+    {
+        isWaiting = true;
+        stateTimer = 0f;
+
+        if (anim != null)
+            anim.SetBool("isRunning", false);
     }
 
     void SetNewInterval()
